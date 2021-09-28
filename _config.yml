@@ -46,7 +46,7 @@ two_columns_layout: true
 
 # Advanced Settings
 remote_theme: thiagorossener/jekflix-template
-baseurl: "/haylium-blog" # the subpath of your site, e.g. /blog
+baseurl: "haylium.com" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site
 google_analytics: "UA-XXXXXXXX-X"
 language: "en"
