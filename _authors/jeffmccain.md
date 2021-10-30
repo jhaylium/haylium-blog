@@ -4,8 +4,8 @@ photo: /assets/img/uploads/profile.png
 name: jeff
 display_name: Jeff McCain
 position: Chief Editor
-bio: Just a developer.
-github_username: thiagorossener
+bio:   I wanted to be a botanist as a child but somehow I ended up writing code for a living...
+github_username: jhaylium
 facebook_username: 
 twitter_username: b0redt0jeff
 instagram_username: 
