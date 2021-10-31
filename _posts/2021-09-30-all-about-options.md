@@ -4,9 +4,9 @@ layout: post
 title: All about Options
 subtitle: A deep dive on options
 description: 
-image: ../assets/img/options.png
+image: https://blog-haylium.s3.amazonaws.com/options.png
 # optimized_image: https://res.cloudinary.com/dm7h7e8xj/image/upload/c_scale,w_380/v1506079212/jekflix-capa_vfhuzh.png
-optimized_image: ../assets/img/options.png
+optimized_image: https://blog-haylium.s3.amazonaws.com/options.png
 category: finance
 tags:
   - finance
