@@ -5,7 +5,6 @@ title: But you don't get to win unless you're playing the game
 subtitle: My Journey to pass the Series 65
 description: 
 image: https://blog-haylium.s3.amazonaws.com/series65.jpg
-# optimized_image: https://res.cloudinary.com/dm7h7e8xj/image/upload/c_scale,w_380/v1506079212/jekflix-capa_vfhuzh.png
 optimized_image: https://blog-haylium.s3.amazonaws.com/series65.jpg
 category: finance
 tags:
@@ -19,7 +18,7 @@ I was looking at the ways that people accumulate wealth in our country and witho
 
 I am currently studying for the series 65. Why you ask, well that one is simple. I want to be able to invest in private companies and that opportunity is currently locked to me. The fact of the matter is that you need to be an accredited investor in order to do that or have a prior relationship with the company. There are some people who may not know what an accredited investor is so I’ll blow it up right here: 
 
-    An accredited investor must meet at least one of the three following criteria
+An accredited investor must meet at least one of the three following criteria:
     
 Have two consecutive years of income of $200,000 or more
 Have $1,000,000 in investible assets - so not including your personal residence
