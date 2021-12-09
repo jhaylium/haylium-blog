@@ -1,6 +1,6 @@
 ---
 layout: author
-photo: /assets/img/uploads/profile.png
+photo: /assets/img/uploads/jeff.jpg
 name: jeff
 display_name: Jeff McCain
 position: Chief Editor
