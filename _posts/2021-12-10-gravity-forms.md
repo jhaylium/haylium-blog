@@ -2,7 +2,7 @@
 date: 2021-12-10 11:20:40
 layout: post
 title: Digging into Gravity Forms Wordpress API
-subtitle: A deep dive on options
+subtitle: Exploring the API of this popular WordPress form builder
 description: 
 image: https://blog-haylium.s3.amazonaws.com/Gravity_Forms.png
 optimized_image: https://blog-haylium.s3.amazonaws.com/Gravity_Forms.png
@@ -15,7 +15,7 @@ author: jeff
 ---
 
 # Gravity Forms
-GravityForms is a WordPress plugin that allows people to set up forms on their sites.
+<a href="https://www.gravityforms.com/">GravityForms</a> is a WordPress plugin that allows people to set up forms on their sites.
 You can use this for everything from surveying people to using them as order forms. I'm 
 on the Board of a non-profit called <a href="https://givingclosetproject.org">The Giving Closet</a>.
 Local social workers and teachers can order clothing for disadvantaged children and pick them 

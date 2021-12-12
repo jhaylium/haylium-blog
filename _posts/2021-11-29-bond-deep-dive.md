@@ -72,9 +72,7 @@ If the bond is trading at a premium or a discount substitute Par for the purchas
 ##### Parity Price
 The price where the convertible bond and the stock have the same value.
 ```
-Stock Price
-___________
-Conversion Ratio
+Stock Price * Conversion Ratio
 ```
 
 
