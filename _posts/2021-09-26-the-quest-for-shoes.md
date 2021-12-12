@@ -61,7 +61,7 @@ if price_var < 90.0:
 ```
 
 ## Step 4: Notification - Twilio
-So I really didn't feel like running this thing myself. Automation was going to be key if I was going to be able to buy shoes in my size before anyone else. And if it's going to be automated the process has to let me know that there are shoes available in my size. So I did the only wise thing and signed up for Twilio account. That's right If my program finds shoes that meet the parameters of my complex algorithm It shoots me a text message. I'd never used Twilio before this but the documentation is out of this world it's so easier to read and implement. This part was probably about 4 to 5 lines of code I don't remember and as I'm laying in bed dictating this to my phone I'm not going to bother being accurate. 
+I really didn't feel like running this thing myself. Automation was going to be key if I was going to be able to buy shoes in my size before anyone else. And if it's going to be automated the process has to let me know that there are shoes available in my size. So I did the only wise thing and signed up for Twilio account. That's right If my program finds shoes that meet the parameters of my complex algorithm It shoots me a text message. I'd never used Twilio before this but the documentation is out of this world it's so easier to read and implement. This part was probably about 4 to 5 lines of code I don't remember and as I'm laying in bed dictating this to my phone I'm not going to bother being accurate. 
 
 #### Update:
 Ok, I felt bad about leaving you hanging so I checked the number of lines. The entire implementation came out to 7 lines of code if you include the import statement. 
@@ -77,7 +77,7 @@ if price_var < 90.0:
         )
 ```
 
-All in all The program works very well but it still has an identified any shoes in my size. I haven't yet decided on a place for it to live so it just runs locally off of my laptop for now. I will eventually either move it to one of four locations: AWS, digital ocean, the Dell PC that I got for free and turned into a Linux machine, or one of the raspberry pis that I've laying around. 
+All in all The program works very well but it still hasn't identified any shoes in my size. I haven't yet decided on a place for it to live so it just runs locally off of my laptop for now. I will eventually either move it to one of four locations: <a href="https://aws.amazon.com/">AWS</a>, <a href="https://www.digitalocean.com/">Digital Ocean</a>, the Dell PC that I got for free and turned into a Linux machine, or one of the <a href="https://www.raspberrypi.com/">Raspberry Pi's<a> that I've laying around. 
 
-The working version of the code took me about an hour and a half to write while I was watching a fantastic documentary on HBO Max about Q. It’s pretty solid, think about doing the same if you're looking for a simple project to complete.
+The working version of the code took me about an hour and a half to write while I was watching a fantastic documentary on HBO Max about Q. The program works well - think about doing the same if you're looking for a simple project to complete.
 
