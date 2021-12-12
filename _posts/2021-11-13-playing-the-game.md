@@ -4,8 +4,8 @@ layout: post
 title: But you don't get to win unless you're playing the game
 subtitle: I'm taking the Series 65
 description: 
-image: https://blog-haylium.s3.amazonaws.com/series65.jpg
-optimized_image: https://blog-haylium.s3.amazonaws.com/series65.jpg
+image: https://blog-haylium.s3.amazonaws.com/test.jpg
+optimized_image: https://blog-haylium.s3.amazonaws.com/test.jpg
 category: finance
 tags:
   - finance
