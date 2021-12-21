@@ -58,7 +58,7 @@ Bond Market Price
 ### Bond Conversion 
 Convertible bonds can be redeemed for common stock, there are two key points here - Conversion Ratio & Parity Price.
 
-##### Conversion Ratio
+### Conversion Ratio
 The conversion Ratio is how many shares of common stock you can redeem your bond for.
 
 ```
@@ -69,10 +69,13 @@ conversion Price
 
 If the bond is trading at a premium or a discount substitute Par for the purchase price.
 
-##### Parity Price
+### Parity Price
 The price where the convertible bond and the stock have the same value.
 ```
 Stock Price * Conversion Ratio
 ```
+
+### Interest Rates
+If interest rates rise the prices of bonds falls, which increases their yield to maturity.
 
 

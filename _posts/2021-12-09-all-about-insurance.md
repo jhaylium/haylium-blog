@@ -43,13 +43,19 @@ performance of the securities in the account.
 A derivative contract sold by insurance companies where the annuitant(policy owner) makes regular payments over time or makes a lump sum payment. At a later date the annuitant receives payments - this typically happens upon retirement.
 There are two payment methods: life annuity, life annuity period certain.
 
-#### Variable Annuity
+### Variable Annuity
 The payments during the annuity period are variable based on the value of the securities underlying the contract.
 
-#### Fixed Annuity
+### Variable Payout Period Risk
+The Insurance Company assumes mortality and expense risk. The policyholder could live longer than anticipated
+and the Insurance Company's expenses could rise faster than they anticipated.
+
+The Policy Owner on the other hand assumes the investment risk and market/purchasing power risk. The investments could do poorly causing the payout to bbe smaller or not beating inflation. 
+
+### Fixed Annuity
 Payments are level and fixed throughout the annuity period.
 
-#### Equity Indexed Annuity
+### Equity Indexed Annuity
 An Annuity contract that is tied to an index like the S&P 500. There is a participation rate which is the max
 percentage of the performance's index that the annuitant receives. In other words this is a cap on how much
 growth you can receive. For instance, if there is a 90% participation rate and the S&P goes up by 10% then you 

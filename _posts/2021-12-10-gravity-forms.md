@@ -133,7 +133,7 @@ The start date and end date keywords allow you to pull a specific range of dates
 The `start_date` keyword on it own will return all data after the date you choose and the `end_date` keyword will do the opposite.
 
 
-### The Final Touches
+# The Final Touches
 I used pandas to combine the headers from the info call and the data from the entries call. I wrote the data 
 to a dataframe and saved that to a CSV to send over to the CEO of the Giving Closet Project. Later on I ended 
 up writing a package that pushes the data to Airtable which you can read about in this <a href="#">post</a>.
