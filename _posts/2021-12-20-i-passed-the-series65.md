@@ -1,5 +1,5 @@
 ---
-date: 2021-12-16 23:04:40
+date: 2021-12-20 23:04:40
 layout: post
 title: I Passed the Series 65!
 subtitle: 4 months of studying and hard work paid off.
