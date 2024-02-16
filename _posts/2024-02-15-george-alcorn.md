@@ -4,8 +4,8 @@ layout: post
 title: George Edward Alcorn
 subtitle: Luminaries of the Diaspora
 description: A children's book written by me, exploring black scientists, inventors, and technologists.
-image: https://blog-haylium.s3.amazonaws.com/0+-+Cover.png
-optimized_image: https://blog-haylium.s3.amazonaws.com/0+-+Cover.png
+image: https://blog-haylium.s3.amazonaws.com/A-george-edward-alcorn-2.png
+optimized_image: https://blog-haylium.s3.amazonaws.com/A-george-edward-alcorn-2.png
 category: books
 tags:
   - Children

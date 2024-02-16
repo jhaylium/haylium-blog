@@ -4,8 +4,8 @@ layout: post
 title: Benjamin Banneker
 subtitle: Predicted the movement of stars and eclipses
 description: A children's book written by me, exploring black scientists, inventors, and technologists.
-image: https://blog-haylium.s3.amazonaws.com/0+-+Cover.png
-optimized_image: https://blog-haylium.s3.amazonaws.com/0+-+Cover.png
+image: https://blog-haylium.s3.amazonaws.com/B+-+benjamin-banneker-3.png
+optimized_image: https://blog-haylium.s3.amazonaws.com/B+-+benjamin-banneker-3.png
 category: books
 tags:
   - Children
