@@ -4,8 +4,8 @@
     title: Norbert Rillieux
     subtitle: He made the world sweeter
     description: A children's book written by me, exploring black scientists, inventors, and technologists.
-    image: https://blog-haylium.s3.amazonaws.com/norbert-rilleux.png
-    optimized_image: https://blog-haylium.s3.amazonaws.com/norbert-rilleux.png
+    image: https://blog-haylium.s3.amazonaws.com/norbert-rillieux.png
+    optimized_image: https://blog-haylium.s3.amazonaws.com/norbert-rillieux.png
     category: books
     tags:
       - Children
