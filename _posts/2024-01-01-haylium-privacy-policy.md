@@ -14,7 +14,6 @@ tags:
   - Whitepapers
 author: jeff
 ---
-# PRIVACY POLICY
 #### Last updated February 01, 2024
 This privacy notice for Haylium Advanced Solutions ("we," "us," or "our"), describes
 how and why we might collect, store, use, and/or share ("process") your information
