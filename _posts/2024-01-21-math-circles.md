@@ -3,7 +3,7 @@ date: 2024-01-15 23:54:40
 layout: post
 title: Math Circles
 subtitle: Introducing math to 3-7 year olds.
-description: This is my reading list.
+description: Notes on a book about inspiring children to think mathematically.
 image: https://images.pexels.com/photos/3825462/pexels-photo-3825462.jpeg
 optimized_image: https://images.pexels.com/photos/3825462/pexels-photo-3825462.jpeg
 category: books
@@ -23,7 +23,7 @@ occurring with my kids. I heard about this book on Reddit called
 
 This page will serve as my notes on this book.
 
-#### What is a math circle?
+### What is a math circle?
 Groups of people get together to discuss and explore math.
 It's popular in Eastern Europe and has been growing in the
 United States. The University of Floria has a [Math circle](https://circle.math.ufl.edu/)
