@@ -1,0 +1,426 @@
+---
+date: 2026-09-26 12:00:00
+layout: post
+title: Bollinger Bands
+subtitle: How to use rolling-average bands to set bounds on a KPI
+description: A research brief that builds from the basics of Bollinger Bands to designing alert bounds for business KPIs.
+image: /assets/img/research/bollinger-bands-kpi-bounds.svg
+optimized_image: /assets/img/research/bollinger-bands-kpi-bounds.svg
+category: research
+math: true
+tags:
+  - Research
+  - Statistics
+  - Anomaly Detection
+  - KPIs
+author: jeff
+---
+<style>
+  .rb { --rb-accent:#5b3fa0; --rb-soft:#f3f0fa; --rb-line:#ddd6ee; --rb-ink:#222; --rb-muted:#555; }
+  .rb .rb-summary { background:var(--rb-soft); border-left:4px solid var(--rb-accent); padding:1em 1.25em; margin:1.5em 0; border-radius:4px; }
+  .rb .rb-summary h3 { margin-top:0; }
+  .rb .rb-level { display:inline-block; font-size:.62em; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+                  color:var(--rb-accent); border:1px solid var(--rb-accent); border-radius:999px; padding:.15em .7em; margin-left:.5em; vertical-align:middle; }
+  .rb .rb-terms { border:1px solid var(--rb-line); border-radius:4px; padding:.75em 1.25em; margin:1.25em 0; }
+  .rb .rb-terms dt { font-weight:700; margin-top:.6em; }
+  .rb .rb-terms dd { margin:0 0 .3em 0; color:var(--rb-ink); }
+  .rb .rb-callout { border-left:4px solid #c9a227; background:#fbf7e9; padding:.75em 1.1em; margin:1.25em 0; border-radius:4px; }
+  .rb .rb-check { border-top:1px solid var(--rb-line); margin-top:2em; padding-top:.75em; }
+  .rb .rb-check h4 { margin-bottom:.5em; }
+  .rb .rb-check details { margin:.5em 0; padding:.5em .9em; background:#fafafa; border:1px solid var(--rb-line); border-radius:4px; }
+  .rb .rb-check summary { cursor:pointer; font-weight:600; }
+  .rb .rb-check details p { margin:.6em 0 .2em; }
+  .rb table { border-collapse:collapse; width:100%; margin:1.25em 0; font-size:.95em; }
+  .rb th, .rb td { border:1px solid var(--rb-line); padding:.5em .7em; text-align:left; vertical-align:top; }
+  .rb th { background:var(--rb-soft); }
+  .rb figure { margin:1.5em 0; text-align:center; }
+  .rb figure svg { max-width:100%; height:auto; }
+  .rb figcaption { font-size:.9em; color:var(--rb-muted); margin-top:.4em; }
+  .rb .rb-map ol { margin-top:.4em; }
+  .rb .rb-sources li { margin-bottom:.4em; word-break:break-word; }
+  .rb pre { font-size:.85em; overflow-x:auto; }
+</style>
+
+<div class="rb">
+
+<div class="rb-summary">
+  <h3>The short version</h3>
+  <p>Bollinger Bands draw a line through the average of the last 20 values, then a band two standard deviations above and below it. Because the width comes from the data's own recent spread, the band widens when a number gets jumpy and narrows when it calms down. That self-adjusting width is why they are tempting for KPI bounds: you don't have to hand-pick a threshold for every metric.</p>
+  <p>Used as-is on business data, though, they break in predictable ways. Weekly cycles inflate the width. One bad day widens the band for three weeks. A real, lasting shift gets absorbed as "normal" within a window. The "2 standard deviations = 95%" idea is wrong even by Bollinger's own account.</p>
+  <p><strong>Recommendation:</strong> keep the idea (bounds that come from the metric's own history) but build them the way monitoring teams do. Compare each day with the same weekday, use a median and a robust spread instead of mean and standard deviation, keep flagged days out of the baseline, and add a "run of 8" rule to catch lasting shifts. Section 6 has a concrete design.</p>
+</div>
+
+<h2 id="why">Why this matters to you</h2>
+<p>This came from a card on my board: "Look up Bollinger Bands (rolling-average bands) for setting KPI parameter bounds." The product I'm working on is a retail-analytics system. It watches operational KPIs, things like shipping cost per order, the share of orders split across locations, and store-level margin, and makes recommendations when something moves. Parameter design, meaning how we decide what counts as "normal" for each KPI, sits on the critical path.</p>
+<p>So the question here isn't "can Bollinger Bands make money trading stocks?" It's "is a rolling mean ± k standard deviations a good way to set the normal range for a business metric, and if not as-is, what should we build?" All numbers in the worked examples are simulated; none come from a real business.</p>
+
+<nav class="rb-map">
+  <strong>Map of this brief</strong>
+  <ol>
+    <li><a href="#basics">The basics</a> — remember</li>
+    <li><a href="#how">How it works</a> — understand</li>
+    <li><a href="#apply">Using it</a> — apply</li>
+    <li><a href="#analyze">Taking it apart</a> — analyze</li>
+    <li><a href="#evaluate">Judging it</a> — evaluate</li>
+    <li><a href="#create">Making something with it</a> — create</li>
+  </ol>
+</nav>
+
+<!-- ================= 1. REMEMBER ================= -->
+<h2 id="basics">The basics <span class="rb-level">Remember</span></h2>
+
+<dl class="rb-terms">
+  <dt>Simple moving average (SMA)</dt><dd>The plain average of the last <em>n</em> values, recomputed every period as the window slides forward.</dd>
+  <dt>Standard deviation (SD, σ)</dt><dd>A measure of how far values typically sit from their average; bigger means more spread out.</dd>
+  <dt>Middle band</dt><dd>The 20-period SMA — the centre line of a Bollinger Band.</dd>
+  <dt>Upper and lower bands</dt><dd>The middle band plus and minus <em>k</em> standard deviations of the same 20 values (<em>k</em> = 2 by default).</dd>
+  <dt>%b ("percent b")</dt><dd>Where the latest value sits inside the band: 0 at the lower band, 0.5 in the middle, 1 at the upper band, above 1 or below 0 when it's outside.</dd>
+  <dt>BandWidth</dt><dd>The band's width divided by the middle band — a single number for how volatile the series currently is.</dd>
+  <dt>The Squeeze</dt><dd>A period when BandWidth is unusually low (traders often use "lowest in about six months"), taken as a sign a big move may follow.</dd>
+  <dt>Envelope</dt><dd>The older idea Bollinger improved on: lines a fixed percentage (say 3%) above and below a moving average.</dd>
+  <dt>Control chart</dt><dd>A chart from factory quality control with a centre line and limits (usually ±3σ) used to spot when a process has changed.</dd>
+  <dt>False alarm / missed detection</dt><dd>Flagging a normal value as unusual, versus failing to flag a real change. Every threshold trades one for the other.</dd>
+</dl>
+
+<h3>Where they came from</h3>
+<p>John Bollinger developed the bands around 1980 while trading options, and made them public in the early 1980s while he was chief market analyst at the Financial News Network <a href="#src-1">[1]</a>. The name was an accident: an anchor asked him on air what he called them.</p>
+<p>Traders already drew bands around a moving average, but at a fixed distance, such as 5% above and below. Bollinger's complaint was that markets have calm spells and wild spells, and a fixed-width band is too wide in the first and too narrow in the second. His fix was to let the band's width come from the series' own recent standard deviation <a href="#src-1">[1]</a>. He wrote the definitive book on them, <em>Bollinger on Bollinger Bands</em>, in 2001, and published 22 rules for using them <a href="#src-2">[2]</a>.</p>
+
+<h3>The formula, named</h3>
+<p>For the latest period \(t\), with window length \(n\) (default 20) and width multiplier \(k\) (default 2):</p>
+\[
+\text{Middle}_t = \bar{x}_t = \frac{1}{n}\sum_{i=0}^{n-1} x_{t-i}
+\qquad
+\sigma_t = \sqrt{\frac{1}{n}\sum_{i=0}^{n-1}\left(x_{t-i}-\bar{x}_t\right)^2}
+\]
+\[
+\text{Upper}_t = \bar{x}_t + k\,\sigma_t \qquad \text{Lower}_t = \bar{x}_t - k\,\sigma_t
+\]
+<p>In words: average the last 20 values; measure how spread out they are; put the band two spreads above and below the average. Three details matter later:</p>
+<ul>
+  <li><strong>Bollinger divides by \(n\), not \(n-1\)</strong> — the "population" standard deviation <a href="#src-1">[1]</a>. Many tools (pandas, for one) default to \(n-1\), which makes 20-period bands about 2.6% wider than Bollinger's <a href="#src-9">[9]</a>.</li>
+  <li><strong>\(k\) should change with \(n\).</strong> His Rule 11: use 1.9 for a 10-period window and 2.1 for a 50-period one <a href="#src-2">[2]</a>.</li>
+  <li><strong>The derived numbers:</strong> \(\%b = (x_t - \text{Lower}_t)/(\text{Upper}_t - \text{Lower}_t)\) and \(\text{BandWidth} = (\text{Upper}_t-\text{Lower}_t)/\text{Middle}_t\). With the default settings, BandWidth is exactly four times the coefficient of variation (SD divided by mean) <a href="#src-2">[2]</a><a href="#src-3">[3]</a>.</li>
+</ul>
+
+<div class="rb-check">
+  <h4>Check yourself</h4>
+  <details><summary>What are the three lines of a Bollinger Band, and what are the default settings?</summary><p>A middle band (the 20-period simple moving average) and upper and lower bands at the middle band ± 2 standard deviations of the same 20 values.</p></details>
+  <details><summary>What problem were they designed to fix?</summary><p>Fixed-percentage envelopes don't adapt to changing volatility. Bollinger Bands take their width from the series' recent standard deviation, so they widen in volatile periods and narrow in quiet ones.</p></details>
+  <details><summary>A value has %b = 1.3. Where is it?</summary><p>Above the upper band, by 30% of the band's width.</p></details>
+</div>
+
+<!-- ================= 2. UNDERSTAND ================= -->
+<h2 id="how">How it works <span class="rb-level">Understand</span></h2>
+
+<h3>An analogy first</h3>
+<p>Think of a road where the lane markings are repainted every night, based on how much drivers swerved over the past 20 days. On a calm stretch, the lanes get narrow, so a small drift looks unusual. On a stretch where everyone swerves (potholes, wind), the lanes widen, so the same drift looks normal. The lanes don't tell you where the road <em>should</em> go. They only describe where traffic has recently been.</p>
+<p>That last point is the key to everything that follows. Bollinger Bands are a description of the recent past, not a model of what ought to happen. Bollinger says so himself in Rule 1: the bands define "high" and "low" relative to recent values, nothing more <a href="#src-2">[2]</a>.</p>
+
+<h3>Now without the analogy</h3>
+<p>Each period, three things happen:</p>
+<ol>
+  <li>The window slides forward one step: the newest value enters, the oldest leaves.</li>
+  <li>The middle band moves toward wherever the window's values now sit.</li>
+  <li>The width is recomputed from how scattered those values are around their new average.</li>
+</ol>
+<p>Because the width is measured from the <em>same</em> window as the centre, anything that makes the window's values scatter widens the band. That includes real noise, but also a trend (values climbing steadily look "spread out" around their average), a weekly pattern (Mondays low, Saturdays high), and a single extreme value. The band can't tell these apart; all of them are just "spread."</p>
+
+<h3>Why the band widens when a series gets volatile</h3>
+<p>Standard deviation squares each value's distance from the average before averaging. A few large distances therefore dominate. When the series starts swinging harder, those large distances enter the window, the SD jumps, and the band opens. When the swings leave the window, 20 periods later, the band closes again — often abruptly, which is why Bollinger allows an exponentially weighted version that fades old values gradually instead of dropping them <a href="#src-2">[2]</a>.</p>
+
+<h3>Common misunderstandings</h3>
+<table>
+  <tr><th>Belief</th><th>Reality</th></tr>
+  <tr><td>"The bands contain 95% of values, so a break is a rare 2-sigma event."</td><td>95% only holds for independent, bell-shaped data. Bollinger's own Rule 14 says to "make no statistical assumptions" and puts containment near 90% for prices <a href="#src-2">[2]</a>; StockCharts measures 88–89% <a href="#src-3">[3]</a>. For an arbitrary distribution, the only guarantee (Chebyshev's inequality) is 75% <a href="#src-19">[19]</a>.</td></tr>
+  <tr><td>"Touching the upper band is a sell signal."</td><td>Rule 6: "Tags of the bands are just that, tags not signals." Rule 7: in a trend, values can "walk" along the band for a long time <a href="#src-2">[2]</a>.</td></tr>
+  <tr><td>"A Squeeze tells you which way it will break."</td><td>It only says volatility is unusually low. The first break is often a fake-out <a href="#src-3">[3]</a>.</td></tr>
+  <tr><td>"You can change the window and keep k = 2."</td><td>Shorter windows should use smaller k, longer ones larger k (Rule 11) <a href="#src-2">[2]</a>.</td></tr>
+  <tr><td>"It's a complete method."</td><td>Bollinger presents it as one input to combine with unrelated indicators — "two momentum indicators aren't better than one" <a href="#src-2">[2]</a>.</td></tr>
+</table>
+
+<div class="rb-check">
+  <h4>Check yourself</h4>
+  <details><summary>In your own words: why does a steady upward trend widen the bands even if day-to-day noise hasn't changed?</summary><p>The SD measures scatter around the window's average. In a trend, early values sit well below that average and late values well above it, so the window looks spread out. The band reads trend as noise.</p></details>
+  <details><summary>Why does a single extreme day affect the band for exactly one window length?</summary><p>It stays inside the window — pulling the average and inflating the SD — until it's 20 periods old and drops out. Then the band snaps back.</p></details>
+</div>
+
+<!-- ================= 3. APPLY ================= -->
+<h2 id="apply">Using it <span class="rb-level">Apply</span></h2>
+
+<h3>A worked example</h3>
+<p>Take a made-up KPI: average shipping cost per online order, in US dollars, for ten days. To keep the arithmetic readable, use a 10-day window. (Strictly, Rule 11 says k = 1.9 for 10 periods; I'll use 2 so the numbers match the general formula.)</p>
+<table>
+  <tr><th>Day</th><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>10</td></tr>
+  <tr><th>Cost</th><td>14.2</td><td>13.8</td><td>14.5</td><td>14.0</td><td>13.6</td><td>14.9</td><td>14.3</td><td>13.9</td><td>14.4</td><td>14.1</td></tr>
+</table>
+<p><strong>Step 1 — the middle band.</strong> The ten values sum to 141.7, so the average is \(141.7 / 10 = 14.17\).</p>
+<p><strong>Step 2 — the squared distances.</strong> Subtract 14.17 from each value and square it:</p>
+<p>0.0009, 0.1369, 0.1089, 0.0289, 0.3249, 0.5329, 0.0169, 0.0729, 0.0529, 0.0049. These sum to 1.281.</p>
+<p><strong>Step 3 — the standard deviation.</strong> Divide by \(n = 10\) and take the square root: \(\sqrt{1.281/10} = \sqrt{0.1281} \approx 0.358\).</p>
+<p><strong>Step 4 — the bands.</strong> Upper \(= 14.17 + 2(0.358) = 14.886\). Lower \(= 14.17 - 2(0.358) = 13.454\). So for day 11, "normal" is roughly &#36;13.45 to &#36;14.89.</p>
+<p><strong>Step 5 — judge day 11.</strong> Day 11 comes in at &#36;16.20. Its %b is \((16.20 - 13.454) / (14.886 - 13.454) = 2.746 / 1.432 \approx 1.92\) — far above the band. That deserves a look.</p>
+<p><strong>Step 6 — notice something.</strong> Day 6 (&#36;14.90) sits just above the upper band of 14.886. But that band was computed from a window that <em>includes</em> day 6 itself. That's the trap in naive implementations: a value helps set the limit it's being judged against. The fix is to judge day \(t\) against a band built from days \(t-n\) to \(t-1\) only.</p>
+
+<div class="rb-callout"><strong>Rule of thumb:</strong> always build today's band from yesterday and earlier. Otherwise a spike inflates its own band and partly hides itself — and in a backtest, you've let the model see the answer.</div>
+
+<h3>How to do it yourself</h3>
+<ol>
+  <li>Pick the KPI and the period (daily is typical). Make sure missing days are marked as missing, not zero.</li>
+  <li>Choose a window. For daily business data, use a multiple of 7 (28 days is a good start) so every weekday is equally represented.</li>
+  <li>For each day, compute the mean and SD of the previous \(n\) days — not including today.</li>
+  <li>Set the band at mean ± k·SD. Start with k = 3 if you'll monitor many metrics, 2 if only a few (section 4 explains why).</li>
+  <li>Flag days outside the band. Look at a few months of history before switching alerts on: how many flags, and were they real?</li>
+</ol>
+
+<h3>In code</h3>
+<p>A minimal pandas version. Note <code>shift(1)</code> (use only earlier days) and <code>ddof=0</code> (Bollinger's population SD):</p>
+<pre><code>import pandas as pd
+
+s = df.set_index("date")["ship_cost_per_order"].asfreq("D")   # gaps become NaN
+
+window = s.shift(1).rolling(28, min_periods=21)
+mid    = window.mean()
+sd     = window.std(ddof=0)
+k      = 3
+upper, lower = mid + k * sd, mid - k * sd
+
+pct_b = (s - lower) / (upper - lower)
+flags = s[(s &gt; upper) | (s &lt; lower)]
+</code></pre>
+<p>In a spreadsheet, with values in column B starting at row 2, the upper band for row 30 is <code>=AVERAGE(B2:B29) + 3*STDEV.P(B2:B29)</code>. <code>STDEV.P</code> is the population version.</p>
+
+<div class="rb-check">
+  <h4>Check yourself</h4>
+  <details><summary>Given the last five values 55, 45, 51, 49, 53, compute 5-period bands with k = 2 (population SD). Is a next value of 56 outside?</summary><p>Sum = 253, so the mean is 50.6. Squared distances: 19.36, 31.36, 0.16, 2.56, 5.76; sum 59.2; divide by 5 = 11.84; SD ≈ 3.44. Bands: 50.6 ± 6.88 → 43.72 to 57.48. So 56 is inside.</p></details>
+  <details><summary>Why must the rolling window be shifted by one day?</summary><p>So the day being judged isn't part of its own baseline. Otherwise a spike raises both the mean and the SD, shrinking its own apparent size.</p></details>
+</div>
+
+<!-- ================= 4. ANALYZE ================= -->
+<h2 id="analyze">Taking it apart <span class="rb-level">Analyze</span></h2>
+
+<h3>What each dial controls</h3>
+<table>
+  <tr><th>Setting</th><th>Turn it up</th><th>Turn it down</th></tr>
+  <tr><td>Window length \(n\)</td><td>Steadier band; slower to accept a genuine new normal; slower to follow seasonal drift.</td><td>Adapts quickly, but chases every wobble. After a real step change the band widens and swallows the shift within days.</td></tr>
+  <tr><td>Multiplier \(k\)</td><td>Fewer false alarms, more missed changes.</td><td>More sensitive, many more false alarms.</td></tr>
+  <tr><td>Centre (mean vs median)</td><td colspan="2">The mean is dragged by extreme values; the median isn't.</td></tr>
+  <tr><td>Spread (SD vs MAD)</td><td colspan="2">One outlier can make the SD as large as you like; the median absolute deviation (MAD) ignores up to half the window being bad <a href="#src-15">[15]</a>.</td></tr>
+</table>
+
+<h3>How much k matters, in numbers</h3>
+<p>If the data were independent and bell-shaped (they won't be, but it sets the scale), the chance that a normal day falls outside the band is:</p>
+<ul>
+  <li>k = 2: about 4.6%, or 1 day in 22.</li>
+  <li>k = 3: about 0.27%, or 1 day in 370 <a href="#src-5">[5]</a>.</li>
+</ul>
+<p>Now multiply by the number of KPIs. Watch 200 metrics at k = 2 and you'd expect about 9 false alarms every single day. At k = 3, about one every two days <a href="#src-20">[20]</a>. Real business data has heavier tails and day-to-day carry-over, which push these numbers up, not down <a href="#src-17">[17]</a><a href="#src-18">[18]</a>. This is the single biggest reason trading defaults (k = 2) are wrong for a KPI monitoring product.</p>
+
+<h3>The assumptions, and what happens when they're false</h3>
+<p><strong>1. Values are independent.</strong> Business metrics aren't: a high-cost day tends to follow a high-cost day. With that kind of carry-over, a short window sees less spread than the series really has, so the band hugs the local level and breaks whenever the series drifts <a href="#src-17">[17]</a>. (The experts disagree on how much this matters; see section 5.)</p>
+<p><strong>2. The level is stable within the window.</strong> A trend or step change inflates the SD and moves the centre. The result: the series "walks" along the band edge rather than breaking it, and a lasting shift becomes the new normal within about one window <a href="#src-2">[2]</a>.</p>
+<p><strong>3. No repeating pattern.</strong> This is the one that bites daily retail data hardest. Look at a simulated KPI with a weekly cycle — weekends cost more — plus a one-day spike on day 38 and a real, lasting step up from day 60:</p>
+
+<figure>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" role="img" aria-label="20-day Bollinger Bands (k = 2) on a KPI with a weekly cycle" font-family="Helvetica, Arial, sans-serif" font-size="12">
+<rect width="760" height="300" fill="#fff"/>
+<line x1="48" x2="748" y1="248.9" y2="248.9" stroke="#eee"/><text x="42" y="252.9" text-anchor="end" fill="#666">12</text>
+<line x1="48" x2="748" y1="180.3" y2="180.3" stroke="#eee"/><text x="42" y="184.3" text-anchor="end" fill="#666">14</text>
+<line x1="48" x2="748" y1="111.7" y2="111.7" stroke="#eee"/><text x="42" y="115.7" text-anchor="end" fill="#666">16</text>
+<line x1="48" x2="748" y1="43.1" y2="43.1" stroke="#eee"/><text x="42" y="47.1" text-anchor="end" fill="#666">18</text>
+<text x="48.0" y="286" text-anchor="middle" fill="#666">day 0</text>
+<text x="166.1" y="286" text-anchor="middle" fill="#666">day 14</text>
+<text x="284.1" y="286" text-anchor="middle" fill="#666">day 28</text>
+<text x="402.2" y="286" text-anchor="middle" fill="#666">day 42</text>
+<text x="520.3" y="286" text-anchor="middle" fill="#666">day 56</text>
+<text x="638.4" y="286" text-anchor="middle" fill="#666">day 70</text>
+<polygon points="216.7,128.1 225.1,124.0 233.5,124.0 242.0,124.3 250.4,124.0 258.8,124.0 267.3,128.6 275.7,129.8 284.1,123.2 292.6,123.2 301.0,123.2 309.4,122.8 317.9,122.9 326.3,125.6 334.7,125.1 343.2,120.8 351.6,120.8 360.0,121.7 368.5,122.0 376.9,110.2 385.3,112.9 393.8,112.8 402.2,110.1 410.7,110.1 419.1,109.8 427.5,109.6 436.0,109.9 444.4,113.0 452.8,114.3 461.3,111.8 469.7,111.8 478.1,112.2 486.6,112.3 495.0,111.7 503.4,115.4 511.9,113.4 520.3,109.5 528.7,109.5 537.2,110.2 545.6,121.6 554.0,122.0 562.5,121.1 570.9,113.4 579.3,105.9 587.8,106.0 596.2,106.0 604.6,105.7 613.1,104.5 621.5,106.7 629.9,101.8 638.4,95.6 646.8,94.2 655.2,94.9 663.7,97.0 672.1,96.6 680.5,97.8 689.0,93.5 697.4,90.6 705.8,90.9 714.3,92.7 722.7,96.7 731.1,97.5 739.6,101.9 748.0,95.3 748.0,189.2 739.6,185.4 731.1,186.9 722.7,185.7 714.3,193.7 705.8,199.8 697.4,204.4 689.0,206.1 680.5,204.5 672.1,204.7 663.7,202.9 655.2,207.3 646.8,212.0 638.4,215.2 629.9,216.7 621.5,214.8 613.1,214.9 604.6,217.8 596.2,218.7 587.8,221.3 579.3,225.4 570.9,223.9 562.5,219.7 554.0,219.2 545.6,215.8 537.2,218.5 528.7,220.7 520.3,222.9 511.9,223.4 503.4,222.5 495.0,223.2 486.6,219.9 478.1,220.2 469.7,222.0 461.3,220.9 452.8,221.6 444.4,222.2 436.0,220.4 427.5,219.7 419.1,219.0 410.7,218.3 402.2,219.0 393.8,220.2 385.3,220.2 376.9,220.6 368.5,216.3 360.0,216.9 351.6,219.3 343.2,219.7 334.7,219.3 326.3,219.1 317.9,219.1 309.4,216.7 301.0,215.0 292.6,216.3 284.1,216.5 275.7,214.8 267.3,215.4 258.8,216.8 250.4,216.2 242.0,215.2 233.5,216.5 225.1,216.7 216.7,216.9" fill="#5b3fa0" fill-opacity="0.15" stroke="none"/>
+<polyline fill="none" stroke="#5b3fa0" stroke-dasharray="4 3" points="216.7,172.5 225.1,170.4 233.5,170.3 242.0,169.8 250.4,170.1 258.8,170.4 267.3,172.0 275.7,172.3 284.1,169.8 292.6,169.7 301.0,169.1 309.4,169.7 317.9,171.0 326.3,172.3 334.7,172.2 343.2,170.3 351.6,170.0 360.0,169.3 368.5,169.2 376.9,165.4 385.3,166.6 393.8,166.5 402.2,164.5 410.7,164.2 419.1,164.4 427.5,164.7 436.0,165.1 444.4,167.6 452.8,168.0 461.3,166.4 469.7,166.9 478.1,166.2 486.6,166.1 495.0,167.5 503.4,168.9 511.9,168.4 520.3,166.2 528.7,165.1 537.2,164.3 545.6,168.7 554.0,170.6 562.5,170.4 570.9,168.7 579.3,165.6 587.8,163.6 596.2,162.4 604.6,161.8 613.1,159.7 621.5,160.8 629.9,159.3 638.4,155.4 646.8,153.1 655.2,151.1 663.7,149.9 672.1,150.7 680.5,151.1 689.0,149.8 697.4,147.5 705.8,145.3 714.3,143.2 722.7,141.2 731.1,142.2 739.6,143.7 748.0,142.3"/>
+<polyline fill="none" stroke="#333" stroke-width="1.4" points="48.0,182.3 56.4,182.7 64.9,192.6 73.3,189.9 81.7,177.9 90.2,134.0 98.6,133.0 107.0,176.5 115.5,178.2 123.9,188.5 132.3,183.7 140.8,168.3 149.2,146.7 157.6,135.4 166.1,175.8 174.5,183.0 182.9,205.0 191.4,202.2 199.8,177.5 208.2,136.4 216.7,139.8 225.1,180.6 233.5,182.7 242.0,196.1 250.4,184.4 258.8,166.6 267.3,138.1 275.7,127.8 284.1,175.5 292.6,176.9 301.0,196.1 309.4,193.3 317.9,173.1 326.3,133.3 334.7,137.1 343.2,178.2 351.6,190.9 360.0,198.8 368.5,102.5 376.9,159.4 385.3,139.1 393.8,140.5 402.2,176.5 410.7,199.8 419.1,190.2 427.5,175.8 436.0,187.1 444.4,135.0 452.8,143.6 461.3,187.1 469.7,183.0 478.1,191.3 486.6,199.8 495.0,162.8 503.4,126.5 511.9,134.3 520.3,167.9 528.7,184.1 537.2,189.5 545.6,198.1 554.0,134.0 562.5,106.6 570.9,115.5 579.3,160.4 587.8,164.5 596.2,164.2 604.6,145.3 613.1,156.6 621.5,113.8 629.9,109.7 638.4,137.1 646.8,151.5 655.2,175.8 663.7,177.9 672.1,136.1 680.5,107.6 689.0,121.3 697.4,141.2 705.8,146.7 714.3,158.3 722.7,154.2 731.1,135.4 739.6,87.7 748.0,106.6"/>
+<circle cx="275.7" cy="127.8" r="5" fill="none" stroke="#c0392b" stroke-width="2"/>
+<circle cx="368.5" cy="102.5" r="5" fill="none" stroke="#c0392b" stroke-width="2"/>
+<circle cx="562.5" cy="106.6" r="5" fill="none" stroke="#c0392b" stroke-width="2"/>
+<circle cx="739.6" cy="87.7" r="5" fill="none" stroke="#c0392b" stroke-width="2"/>
+<line x1="554.0" x2="554.0" y1="26" y2="266" stroke="#999" stroke-dasharray="2 3"/><text x="558.0" y="36" fill="#777">real step up</text>
+<text x="48" y="16" font-weight="700" fill="#222">20-day Bollinger Bands (k = 2) on a KPI with a weekly cycle</text>
+</svg>
+<figcaption>Simulated data. Red circles are flags. The band is about &#36;3 wide because the weekday/weekend swing counts as "noise." It catches the day-38 spike but also flags an ordinary Sunday (day 27), and after the real step it flags only two Saturdays — by accident, because Saturdays are the highest days.</figcaption>
+</figure>
+
+<p>The 20-day band spends its width on the weekly cycle. It's too wide to see modest problems on weekdays, yet still trips on high weekends. The step change on day 60 is never clearly flagged; it just drifts into the baseline.</p>
+<p><strong>4. The baseline is clean.</strong> The day-38 spike sits in the window for the next 20 days, widening the band and making it blind to a second problem in that stretch. A week-long outage would become next month's "normal" <a href="#src-6">[6]</a>.</p>
+<p><strong>5. The spread is the same at every volume.</strong> For a ratio KPI — split-order rate, conversion, cost per shipment — a store with 40 orders a day is naturally far noisier than one with 4,000. A single SD band is too tight for the small store and too loose for the big one. The quality-control answer is a band that depends on that day's denominator (a "p-chart"): \(\bar{p} \pm 3\sqrt{\bar{p}(1-\bar{p})/n_t}\) <a href="#src-16">[16]</a>.</p>
+
+<h3>The nearest alternatives</h3>
+<table>
+  <tr><th>Method</th><th>How the band is built</th><th>Good at</th><th>Weak at</th></tr>
+  <tr><td>Bollinger Bands</td><td>Rolling mean ± k·SD of last n values</td><td>Simple; adapts to changing volatility</td><td>Weekly cycles, outliers, lasting shifts</td></tr>
+  <tr><td>Fixed-percentage envelope</td><td>Rolling mean ± fixed %</td><td>Predictable; easy to explain</td><td>Ignores how noisy each metric is</td></tr>
+  <tr><td>Shewhart / XmR chart</td><td>Fixed limits from a baseline period; spread from average day-to-day change (mean ± 2.66 × average moving range) <a href="#src-7">[7]</a></td><td>Big, sudden changes; trends don't inflate the limits</td><td>Small lasting drifts (a 1σ shift takes ~44 points to catch) <a href="#src-5">[5]</a></td></tr>
+  <tr><td>EWMA chart</td><td>Exponentially weighted average; tight limits on it</td><td>Small gradual drifts <a href="#src-4">[4]</a></td><td>Slower to react to a single spike</td></tr>
+  <tr><td>Same-weekday median ± MAD (Hampel-style)</td><td>Median of the last 6–8 same weekdays ± k × 1.4826 × MAD</td><td>Weekly cycles; outliers can't widen the band</td><td>Needs 6–8 weeks of history; MAD can hit zero on flat data</td></tr>
+  <tr><td>Forecast interval (Holt-Winters, Prophet)</td><td>Model trend + season + holidays; band = prediction interval</td><td>Complex seasonality, holidays, retail calendars <a href="#src-14">[14]</a></td><td>More to build, tune and explain</td></tr>
+</table>
+
+<p>Here is the same simulated series with a same-weekday baseline: each day is compared with the median of the previous six same weekdays, with a robust spread.</p>
+<figure>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" role="img" aria-label="Same-weekday baseline: median of last 6 same weekdays, ±3.5 robust SD" font-family="Helvetica, Arial, sans-serif" font-size="12">
+<rect width="760" height="300" fill="#fff"/>
+<line x1="48" x2="748" y1="248.9" y2="248.9" stroke="#eee"/><text x="42" y="252.9" text-anchor="end" fill="#666">12</text>
+<line x1="48" x2="748" y1="180.3" y2="180.3" stroke="#eee"/><text x="42" y="184.3" text-anchor="end" fill="#666">14</text>
+<line x1="48" x2="748" y1="111.7" y2="111.7" stroke="#eee"/><text x="42" y="115.7" text-anchor="end" fill="#666">16</text>
+<line x1="48" x2="748" y1="43.1" y2="43.1" stroke="#eee"/><text x="42" y="47.1" text-anchor="end" fill="#666">18</text>
+<text x="48.0" y="286" text-anchor="middle" fill="#666">day 0</text>
+<text x="166.1" y="286" text-anchor="middle" fill="#666">day 14</text>
+<text x="284.1" y="286" text-anchor="middle" fill="#666">day 28</text>
+<text x="402.2" y="286" text-anchor="middle" fill="#666">day 42</text>
+<text x="520.3" y="286" text-anchor="middle" fill="#666">day 56</text>
+<text x="638.4" y="286" text-anchor="middle" fill="#666">day 70</text>
+<polygon points="284.1,144.9 292.6,149.3 301.0,161.7 309.4,154.0 317.9,138.8 326.3,100.6 334.7,97.3 343.2,142.7 351.6,149.3 360.0,163.6 368.5,157.0 376.9,139.0 385.3,99.7 393.8,98.6 402.2,143.6 410.7,149.3 419.1,163.6 427.5,154.0 436.0,136.4 444.4,100.6 452.8,99.5 461.3,142.7 469.7,149.4 478.1,163.6 486.6,138.7 495.0,136.4 503.4,100.6 511.9,101.9 520.3,143.6 528.7,149.6 537.2,163.6 545.6,126.6 554.0,131.6 562.5,99.0 570.9,101.9 579.3,143.6 587.8,150.2 596.2,161.0 604.6,136.4 613.1,129.1 621.5,97.3 629.9,99.0 638.4,142.1 646.8,147.1 655.2,157.9 663.7,109.8 672.1,118.4 680.5,92.5 689.0,99.0 697.4,126.0 705.8,122.2 714.3,157.0 722.7,62.1 731.1,88.6 739.6,52.5 748.0,62.9 748.0,192.8 739.6,187.7 731.1,227.4 722.7,291.6 714.3,222.8 705.8,244.9 697.4,218.5 689.0,172.4 680.5,167.2 672.1,203.8 663.7,259.3 655.2,223.6 646.8,220.0 638.4,209.9 629.9,172.4 621.5,171.0 613.1,200.3 604.6,241.3 596.2,226.3 587.8,216.9 579.3,211.2 570.9,175.0 562.5,172.4 554.0,208.1 545.6,251.1 537.2,228.6 528.7,216.4 520.3,211.2 511.9,175.0 503.4,173.9 495.0,205.0 486.6,229.4 478.1,228.6 469.7,216.3 461.3,210.4 452.8,172.9 444.4,173.9 436.0,205.0 427.5,220.3 419.1,228.6 410.7,216.1 402.2,211.2 393.8,172.1 385.3,173.1 376.9,207.2 368.5,222.8 360.0,228.6 351.6,216.1 343.2,210.4 334.7,171.0 326.3,173.9 317.9,207.0 309.4,220.3 301.0,227.0 292.6,216.1 284.1,212.3" fill="#1f7a5a" fill-opacity="0.15" stroke="none"/>
+<polyline fill="none" stroke="#1f7a5a" stroke-dasharray="4 3" points="284.1,178.6 292.6,182.7 301.0,194.3 309.4,187.1 317.9,172.9 326.3,137.3 334.7,134.2 343.2,176.5 351.6,182.7 360.0,196.1 368.5,189.9 376.9,173.1 385.3,136.4 393.8,135.4 402.2,177.4 410.7,182.7 419.1,196.1 427.5,187.1 436.0,170.7 444.4,137.3 452.8,136.2 461.3,176.5 469.7,182.9 478.1,196.1 486.6,184.1 495.0,170.7 503.4,137.3 511.9,138.5 520.3,177.4 528.7,183.0 537.2,196.1 545.6,188.9 554.0,169.8 562.5,135.7 570.9,138.5 579.3,177.4 587.8,183.5 596.2,193.7 604.6,188.9 613.1,164.7 621.5,134.2 629.9,135.7 638.4,176.0 646.8,183.5 655.2,190.7 663.7,184.6 672.1,161.1 680.5,129.9 689.0,135.7 697.4,172.2 705.8,183.5 714.3,189.9 722.7,176.9 731.1,158.0 739.6,120.1 748.0,127.8"/>
+<polyline fill="none" stroke="#333" stroke-width="1.4" points="48.0,182.3 56.4,182.7 64.9,192.6 73.3,189.9 81.7,177.9 90.2,134.0 98.6,133.0 107.0,176.5 115.5,178.2 123.9,188.5 132.3,183.7 140.8,168.3 149.2,146.7 157.6,135.4 166.1,175.8 174.5,183.0 182.9,205.0 191.4,202.2 199.8,177.5 208.2,136.4 216.7,139.8 225.1,180.6 233.5,182.7 242.0,196.1 250.4,184.4 258.8,166.6 267.3,138.1 275.7,127.8 284.1,175.5 292.6,176.9 301.0,196.1 309.4,193.3 317.9,173.1 326.3,133.3 334.7,137.1 343.2,178.2 351.6,190.9 360.0,198.8 368.5,102.5 376.9,159.4 385.3,139.1 393.8,140.5 402.2,176.5 410.7,199.8 419.1,190.2 427.5,175.8 436.0,187.1 444.4,135.0 452.8,143.6 461.3,187.1 469.7,183.0 478.1,191.3 486.6,199.8 495.0,162.8 503.4,126.5 511.9,134.3 520.3,167.9 528.7,184.1 537.2,189.5 545.6,198.1 554.0,134.0 562.5,106.6 570.9,115.5 579.3,160.4 587.8,164.5 596.2,164.2 604.6,145.3 613.1,156.6 621.5,113.8 629.9,109.7 638.4,137.1 646.8,151.5 655.2,175.8 663.7,177.9 672.1,136.1 680.5,107.6 689.0,121.3 697.4,141.2 705.8,146.7 714.3,158.3 722.7,154.2 731.1,135.4 739.6,87.7 748.0,106.6"/>
+<circle cx="368.5" cy="102.5" r="5" fill="none" stroke="#c0392b" stroke-width="2"/>
+<circle cx="638.4" cy="137.1" r="5" fill="none" stroke="#c0392b" stroke-width="2"/>
+<line x1="554.0" x2="554.0" y1="26" y2="266" stroke="#999" stroke-dasharray="2 3"/><text x="558.0" y="36" fill="#777">real step up</text>
+<text x="48" y="16" font-weight="700" fill="#222">Same-weekday baseline: median of last 6 same weekdays, ±3.5 robust SD</text>
+</svg>
+<figcaption>Simulated data. The band now follows the weekly shape and is much narrower on weekdays. The spike is caught and the ordinary Sunday is not flagged. The step is still hard to see day by day (only one Monday, day 70, trips the band) — but a "run of 8 days above the centre line" rule fires on day 67, a week after the change.</figcaption>
+</figure>
+
+<div class="rb-check">
+  <h4>Check yourself</h4>
+  <details><summary>Your KPI has a strong weekly cycle. What goes wrong with 20-day bands, and what would you do instead?</summary><p>The weekday-to-weekend swing inflates the SD, so the band is too wide on typical days while high weekends can still trip it. Compare each day with the same weekday over the last 6–8 weeks, or remove the weekly pattern first and put the band on what's left.</p></details>
+  <details><summary>A cost KPI jumps 6% and stays there. A week later the 28-day band has stopped flagging it. Diagnose.</summary><p>Rolling bands forget: the higher values have entered the window, raised the centre and widened the SD. Single-point bands are poor at persistent shifts. Add a persistence rule (e.g. 8 in a row above the centre) or an EWMA/CUSUM check, and consider freezing the baseline when a shift is flagged.</p></details>
+</div>
+
+<!-- ================= 5. EVALUATE ================= -->
+<h2 id="evaluate">Judging it <span class="rb-level">Evaluate</span></h2>
+
+<h3>The evidence from trading</h3>
+<p>Bollinger Bands were built for trading, so that's where they've been tested most. The results are not encouraging for the standard rules:</p>
+<ul>
+  <li>Lento, Gradojevic and Wright (2007) tested US and Canadian indices and currencies from 1995 to 2004. After trading costs, band rules "are consistently unable to earn profits in excess of the buy-and-hold" strategy <a href="#src-10">[10]</a>.</li>
+  <li>Leung and Chong (2003) compared Bollinger Bands with plain fixed-percentage envelopes. The adaptive width — the whole point of the method — did not improve results <a href="#src-11">[11]</a>.</li>
+  <li>Fang, Jacobsen and Qin (2017) found the bands would have been very profitable before they were published, and lost most of their predictive power once they became popular <a href="#src-12">[12]</a>.</li>
+  <li>A survey of about 95 studies of technical trading rules found early profits shrink sharply once researchers account for having tried many rules and reported the best <a href="#src-13">[13]</a>.</li>
+</ul>
+<p>Most of that doesn't transfer to KPI monitoring. A store's shipping cost doesn't react to other people watching the band. But one lesson does: the adaptive width, on its own, has not been shown to beat simpler baselines.</p>
+
+<h3>The statistical criticisms</h3>
+<ul>
+  <li><strong>"k" is not a probability.</strong> Non-normal data can raise the false-alarm rate of limits several times over <a href="#src-18">[18]</a>. Treat k as a sensitivity dial you tune against history, not as "95% confidence."</li>
+  <li><strong>The SD breaks easily.</strong> One outlier inflates it; several outliers hide each other. Median and MAD resist up to half the window being bad <a href="#src-15">[15]</a>.</li>
+  <li><strong>The width is itself noisy.</strong> An SD estimated from 20 points has a relative error of roughly 16% even on clean data, so the effective false-alarm rate wanders from day to day.</li>
+  <li><strong>Rolling bands forget.</strong> They're built to accept the new normal, which is exactly wrong when the new normal is a problem you want fixed.</li>
+</ul>
+
+<h3>Where experts disagree</h3>
+<p>The quality-control world has a real split. Douglas Montgomery's textbook tradition, following Alwan and Roberts (1988), says that when each value is correlated with the one before it, you should model that correlation and chart what's left over <a href="#src-17">[17]</a>. Donald Wheeler disagrees: correlations up to about 0.6 barely change the limits, and past that the pattern is usually obvious by eye. His line: whenever you're told you can't chart correlated data, "you are listening to an SPC novice" <a href="#src-8">[8]</a>.</p>
+<p>Wheeler also argues that Shewhart's 3σ limits were never meant as probability limits. They were chosen because they work on real data, whatever its shape <a href="#src-18">[18]</a>. For a KPI product, the practical upshot is the same from both sides: judge bounds by whether they give useful alerts on your history, not by a textbook percentage.</p>
+<p>Monitoring practitioners land in the middle. Datadog offers three algorithms precisely because none wins everywhere: a fast rolling one, a seasonal forecasting one, and a decomposition one that holds steady through long anomalies <a href="#src-6">[6]</a>. Grafana's open framework uses mean ± 2 SD but adds a minimum band width so flat periods don't produce a zero-width band <a href="#src-21">[21]</a>. Prometheus's early guidance alerts only when a value is more than 2 SD above the mean <em>and</em> at least 20% above it, so tiny-but-"significant" wobbles don't page anyone <a href="#src-22">[22]</a>. LinkedIn's ThirdEye compares with the same weekday in prior weeks and treats holidays separately <a href="#src-23">[23]</a>.</p>
+
+<h3>Verdict for KPI bounds</h3>
+<div class="rb-callout"><strong>Use the idea, not the defaults.</strong> Bounds that come from each metric's own history are right for a product that watches many KPIs — nobody wants to hand-set thousands of thresholds. But plain 20-day, 2-SD Bollinger Bands will produce too many false alarms, stumble on weekly cycles, and let lasting problems fade into the baseline. Build the same-weekday, robust version, with a persistence rule and a minimum practical size, and tune k against history.</div>
+
+<div class="rb-check">
+  <h4>Check yourself</h4>
+  <details><summary>A teammate proposes 3σ bands instead of 2σ to cut false alarms. Argue for and against.</summary><p>For: with many KPIs, 2σ produces a flood of false alarms (≈9/day for 200 metrics); 3σ cuts that roughly 17-fold, and people stop ignoring alerts. Against: small real changes will be missed for longer; a 1σ shift may take weeks to trip a 3σ band. Middle ground: 3σ for single-day flags, plus a persistence rule (e.g. 8 days above the centre) to catch small lasting shifts.</p></details>
+  <details><summary>The academic trading studies found Bollinger Bands don't beat buy-and-hold. Does that mean they're useless for KPI bounds?</summary><p>Not directly — trading returns depend on markets pricing in public rules, which KPIs don't do. The transferable lesson is narrower: the adaptive width alone hasn't beaten simpler baselines, so it has to earn its place against, say, a same-weekday median.</p></details>
+</div>
+
+<!-- ================= 6. CREATE ================= -->
+<h2 id="create">Making something with it <span class="rb-level">Create</span></h2>
+
+<h3>A proposed design for KPI bounds</h3>
+<p>Here's how I'd specify "normal range" for each KPI in a retail-analytics product. It keeps what's good about Bollinger Bands — self-adjusting, per-metric bounds — and fixes the failure modes from section 4.</p>
+
+<ol>
+  <li><strong>Classify each KPI first.</strong> Is it a total (orders, revenue), an average (cost per order), or a ratio with a denominator (split-order rate, margin %)? Ratios get denominator-aware bounds (step 6). Everything else follows steps 2–5.</li>
+  <li><strong>Baseline = same weekday.</strong> Centre line = median of the last 8 same weekdays, excluding flagged days and known holidays or promotions. With under 4 same-weekday values, don't alert; show "learning."</li>
+  <li><strong>Spread = robust.</strong> Spread = 1.4826 × MAD of those same values, with a floor (say 3% of the centre) so it never collapses to zero on flat data.</li>
+  <li><strong>Three kinds of flag:</strong>
+    <ul>
+      <li><em>Spike:</em> today is more than 3.5 robust spreads from the centre.</li>
+      <li><em>Shift:</em> 8 days in a row on the same side of the centre (Nelson-style), which catches small lasting changes that no single day shows <a href="#src-24">[24]</a>.</li>
+      <li><em>Practical size:</em> in either case, only flag if the move is also bigger than a minimum business-relevant size (e.g. ±5% or a set dollar amount), so statistically real but trivial moves don't create work.</li>
+    </ul>
+  </li>
+  <li><strong>Protect the baseline.</strong> When a day is flagged, drop it from future baselines until someone marks it "expected" (e.g. a planned price change). That stops a problem from becoming normal.</li>
+  <li><strong>Ratios.</strong> Pool the baseline as total numerator ÷ total denominator over the window (not an average of daily ratios), then use \(\bar{p} \pm 3\sqrt{\bar{p}(1-\bar{p})/n_t}\). Skip days where \(n_t \bar{p} &lt; 5\). If everything looks out of control at large volumes, widen by the observed spread (a Laney p′ adjustment) <a href="#src-16">[16]</a>.</li>
+  <li><strong>Retail calendar.</strong> For year-over-year comparisons and holiday baselines, align on fiscal weeks in the retail 4-5-4 calendar, not calendar dates, so each comparison has the same weekday mix <a href="#src-25">[25]</a>.</li>
+  <li><strong>Tune on history.</strong> Replay the last 6–12 months. Count flags per KPI per month and check a sample by hand. Set k so the total alert volume across all KPIs is something a person will actually read — for example, no more than a handful a day.</li>
+</ol>
+
+<p>Written as a rule the engineering team could implement:</p>
+<pre><code>for each KPI, each store, each day t:
+    hist   = values on the same weekday, weeks t-1 .. t-8, excluding flagged/holiday days
+    if len(hist) &lt; 4: status = "learning"; continue
+    centre = median(hist)
+    spread = max(1.4826 * MAD(hist), 0.03 * centre)
+    z      = (x_t - centre) / spread
+    spike  = abs(z) &gt; 3.5 and abs(x_t - centre) &gt; min_practical_change
+    shift  = last 8 days all on the same side of their centres
+    if spike or shift: flag(t); exclude t from future baselines
+</code></pre>
+
+<h3>Extensions worth trying</h3>
+<ul>
+  <li><strong>Use %b as a feature, not just an alarm.</strong> A robust version of %b (the z above) puts every KPI on the same scale. That lets a recommendation engine rank "which store's shipping cost is most unusual today" across metrics with very different units.</li>
+  <li><strong>Graduate to forecast intervals where it pays.</strong> For the handful of KPIs with strong holiday and promotional effects, a Holt-Winters or Prophet forecast with a 95–99% interval (Prophet's default is only 80%) will beat any rolling band <a href="#src-14">[14]</a>. Keep the simple method for the long tail of metrics.</li>
+  <li><strong>Compare across stores on the same day.</strong> A funnel plot — each store's rate against limits that depend on its volume — finds the outlier store rather than the outlier day <a href="#src-16">[16]</a>.</li>
+</ul>
+
+<h3>Open questions</h3>
+<ul>
+  <li>Are bounds for alerting people, or constraints inside the recommendation logic? The second needs stability more than sensitivity.</li>
+  <li>How much history is there per store and KPI? Same-weekday baselines want 6–8 weeks; seasonal models want at least a year.</li>
+  <li>Who marks a shift as "expected," and how does that feed back into the baseline?</li>
+</ul>
+
+<div class="rb-check">
+  <h4>Check yourself</h4>
+  <details><summary>Sketch the rule for a split-order-rate KPI at 50 stores: inputs, parameters, what triggers a flag.</summary><p>Inputs: daily split orders and total orders per store. Baseline: pooled rate over the last 8 same weekdays, excluding flagged days. Limits: p̄ ± 3√(p̄(1−p̄)/n_t) using that day's order count; skip days with n_t·p̄ &lt; 5. Flags: outside the limits and at least 2 percentage points from p̄; or 8 days in a row above p̄. Across stores, a same-day funnel plot highlights which store is off.</p></details>
+</div>
+
+<h2 id="further">Further reading</h2>
+<ul>
+  <li><a href="https://www.bollingerbands.com/bollinger-band-rules">John Bollinger — Bollinger Band Rules</a> — the 22 rules, short and blunt, from the inventor.</li>
+  <li><a href="https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/bollinger-bands">StockCharts ChartSchool — Bollinger Bands</a> — clear walkthrough of the formula, %b and BandWidth.</li>
+  <li><a href="https://pump.academy/articles-and-whitepapers/how-to-build-an-xmr-chart-for-your-kpi/">Stacey Barr — How to build an XmR chart for your KPI</a> — the control-chart view, written for business people.</li>
+  <li><a href="https://docs.datadoghq.com/monitors/types/anomaly/">Datadog — Anomaly monitors</a> — how a production system chooses between three band algorithms.</li>
+  <li><a href="https://grafana.com/blog/how-to-use-prometheus-to-efficiently-detect-anomalies-at-scale/">Grafana — Detecting anomalies at scale</a> — practical tricks: minimum width, window choice, seasonality.</li>
+  <li><a href="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc32.htm">NIST e-Handbook — Control charts</a> — the reference for Shewhart, EWMA, CUSUM and run lengths.</li>
+  <li><a href="https://www.qualitydigest.com/inside/statistics-column/probability-limits-030215.html">Donald Wheeler — Probability limits</a> — why 3σ isn't a probability, from the sharpest critic.</li>
+  <li><a href="https://arxiv.org/pdf/1704.07706">Hochenbaum et al. — Automatic anomaly detection in the cloud via statistical learning</a> — Twitter's seasonal decomposition + median/MAD approach.</li>
+</ul>
+
+<h2 id="sources">Sources</h2>
+<ol class="rb-sources">
+  <li id="src-1"><a href="https://www.bollingerbands.com/bollinger-bands">John Bollinger, "Bollinger Bands" (bollingerbands.com)</a></li>
+  <li id="src-2"><a href="https://www.bollingerbands.com/bollinger-band-rules">John Bollinger, "Bollinger Band Rules" (bollingerbands.com)</a></li>
+  <li id="src-3"><a href="https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/bollinger-bands">StockCharts ChartSchool, "Bollinger Bands"; also %b and BandWidth pages</a></li>
+  <li id="src-4"><a href="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc324.htm">NIST/SEMATECH e-Handbook, "EWMA Control Charts"</a></li>
+  <li id="src-5"><a href="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc3131.htm">NIST/SEMATECH e-Handbook, "CUSUM average run length"</a>; <a href="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc32.htm">"What are variables control charts?"</a></li>
+  <li id="src-6"><a href="https://docs.datadoghq.com/monitors/types/anomaly/">Datadog, "Anomaly Monitor" documentation</a></li>
+  <li id="src-7"><a href="https://pump.academy/articles-and-whitepapers/how-to-build-an-xmr-chart-for-your-kpi/">Stacey Barr, "How to build an XmR chart for your KPI"</a></li>
+  <li id="src-8"><a href="https://www.qualitydigest.com/inside/statistics-column/autocorrelated-data-080717.html">Donald J. Wheeler, "Autocorrelated Data," Quality Digest (2017)</a></li>
+  <li id="src-9"><a href="https://pandas.pydata.org/docs/reference/api/pandas.api.typing.Rolling.std.html">pandas documentation, Rolling.std</a></li>
+  <li id="src-10"><a href="https://www.tandfonline.com/doi/full/10.1080/17446540701206576">Lento, Gradojevic &amp; Wright, "Investment information content in Bollinger Bands?", Applied Financial Economics Letters (2007)</a></li>
+  <li id="src-11"><a href="https://ideas.repec.org/a/taf/apeclt/v10y2003i6p339-341.html">Leung &amp; Chong, "An empirical comparison of moving average envelopes and Bollinger Bands," Applied Economics Letters (2003)</a></li>
+  <li id="src-12"><a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2484322">Fang, Jacobsen &amp; Qin, "Popularity versus Profitability: Evidence from Bollinger Bands," Journal of Portfolio Management (2017)</a></li>
+  <li id="src-13"><a href="https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1467-6419.2007.00519.x">Park &amp; Irwin, "What do we know about the profitability of technical analysis?", Journal of Economic Surveys (2007)</a></li>
+  <li id="src-14"><a href="https://github.com/facebook/prophet/blob/main/docs/_docs/uncertainty_intervals.md">Prophet documentation, "Uncertainty intervals"</a></li>
+  <li id="src-15"><a href="https://arxiv.org/pdf/1707.09752">Rousseeuw &amp; Hubert, "Anomaly detection by robust statistics," WIREs (2018)</a>; <a href="https://blogs.sas.com/content/iml/2021/06/01/hampel-filter-robust-outliers.html">SAS blog, "The Hampel filter"</a></li>
+  <li id="src-16"><a href="https://en.wikipedia.org/wiki/P-chart">p-chart (Wikipedia)</a>; <a href="https://blog.minitab.com/en/blog/understanding-statistics/how-to-eliminate-false-alarms-on-p-and-u-control-charts">Minitab, "Laney p′ charts"</a>; <a href="https://link.springer.com/article/10.1186/1478-7954-9-58">funnel plots in health surveillance</a></li>
+  <li id="src-17"><a href="https://www.semanticscholar.org/paper/Time-Series-Modeling-for-Statistical-Process-Alwan-Roberts/8993475d8470bb280d3971e7db868d7ab2f03084">Alwan &amp; Roberts, "Time-Series Modeling for Statistical Process Control," JBES (1988)</a>; <a href="https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=50809">Winkel &amp; Zhang, NIST (2004)</a></li>
+  <li id="src-18"><a href="https://www.qualitydigest.com/inside/statistics-column/probability-limits-030215.html">Donald J. Wheeler, "Probability Limits," Quality Digest (2015)</a></li>
+  <li id="src-19"><a href="https://en.wikipedia.org/wiki/Chebyshev%27s_inequality">Chebyshev's inequality (Wikipedia)</a></li>
+  <li id="src-20"><a href="https://www.publichealth.columbia.edu/research/population-health-methods/false-discovery-rate">Columbia Public Health, "False Discovery Rate"</a></li>
+  <li id="src-21"><a href="https://grafana.com/blog/how-to-use-prometheus-to-efficiently-detect-anomalies-at-scale/">Grafana Labs, "How to use Prometheus to efficiently detect anomalies at scale"</a></li>
+  <li id="src-22"><a href="https://prometheus.io/blog/2015/06/18/practical-anomaly-detection/">Prometheus blog, "Practical Anomaly Detection" (2015)</a></li>
+  <li id="src-23"><a href="https://engineering.linkedin.com/blog/2019/06/smart-alerts-in-thirdeye--linkedins-real-time-monitoring-platfor">LinkedIn Engineering, "Smart alerts in ThirdEye" (2019)</a></li>
+  <li id="src-24"><a href="https://en.wikipedia.org/wiki/Western_Electric_rules">Western Electric rules (Wikipedia)</a>; <a href="https://www.spcpress.com/pdf/DJW322.Oct.17.Using%20Extra%20Detection%20Rules.pdf">Wheeler, "Using Extra Detection Rules"</a></li>
+  <li id="src-25"><a href="https://nrf.com/resources/4-5-4-calendar">National Retail Federation, "4-5-4 Calendar"</a></li>
+</ol>
+
+</div>

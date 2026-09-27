@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1200" height="630" fill="#2a1d4f"/>
+  <rect y="430" width="1200" height="200" fill="#34265f"/>
+  <path d="M60 520 C180 470 260 500 360 455 S560 420 660 440 S860 470 960 410 S1100 380 1140 390 L1140 330 C1100 320 1000 340 960 350 S760 400 660 380 S460 350 360 390 S180 400 60 450 Z" fill="#b9a6f0" fill-opacity="0.25"/>
+  <path d="M60 485 C180 435 260 470 360 422 S560 385 660 410 S860 435 960 380 S1100 350 1140 360" fill="none" stroke="#b9a6f0" stroke-width="3" stroke-dasharray="10 8"/>
+  <path d="M60 480 L120 470 L180 450 L240 490 L300 430 L360 420 L420 440 L480 400 L540 395 L600 420 L660 405 L720 430 L780 300 L840 425 L900 390 L960 370 L1020 385 L1080 355 L1140 350" fill="none" stroke="#ffffff" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="780" cy="300" r="14" fill="none" stroke="#ffb347" stroke-width="5"/>
+  <text x="80" y="120" fill="#b9a6f0" font-size="30" letter-spacing="4">RESEARCH BRIEF</text>
+  <text x="80" y="205" fill="#ffffff" font-size="76" font-weight="700">Bollinger Bands</text>
+  <text x="80" y="265" fill="#e6e0f7" font-size="34">How to use rolling-average bands to set bounds on a KPI</text>
+</svg>
